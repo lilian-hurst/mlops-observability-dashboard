@@ -30,6 +30,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
+COPY data/fallback_weather.csv data/fallback_weather.csv
 
 EXPOSE 8501
 

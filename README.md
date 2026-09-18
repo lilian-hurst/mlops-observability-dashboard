@@ -32,13 +32,15 @@ Une chaîne MLOps polyglotte-persistance complète, avec un dashboard qui l'obse
 - **Postgres** (via MLflow) pour les runs/métriques : données structurées, un schéma stable, on veut des requêtes/agrégations fiables dessus.
 - **MongoDB** pour les événements qualité/traçabilité : le contenu d'un rapport de qualité change de forme d'une vérification à l'autre (colonnes manquantes, violations de plage, dérive détectée...) — le forcer dans des tables relationnelles imposerait des migrations de schéma à chaque nouvelle vérification ajoutée. Un document JSON schema-less colle mieux à ce que c'est réellement.
 
-## Deux vrais bugs rencontrés et corrigés pendant le développement
+## Trois vrais bugs rencontrés et corrigés pendant le développement
 
 **MLflow / DNS rebinding (version complète)** : MLflow 3.x rejette par défaut toute requête dont l'en-tête `Host` n'est pas dans une liste blanche (protection anti *DNS rebinding*). Le nom de service Docker Compose `mlflow` n'y est pas par défaut → toutes les requêtes du pipeline d'entraînement échouaient avec `403 Invalid Host header`, jusqu'à ajouter explicitement `--allowed-hosts mlflow,mlflow:5000` au démarrage du serveur (voir `Dockerfile.mlflow`).
 
 **Système de fichiers en lecture seule (version simplifiée / démo en ligne)** : sur Render, le système de fichiers du conteneur est monté en lecture seule en dehors de `/tmp`. Le run d'entraînement de démarrage écrivait dans `./data` (sous `/app`) → échec silencieux (`cannot create data/seed_training.log: Read-only file system`), le dashboard démarrait quand même (d'où un "aucun run trouvé" sans explication visible). Reproduit et confirmé en local avec `docker run --read-only --tmpfs /tmp`, corrigé en redirigeant toutes les écritures (base MLflow, base d'événements, artefacts de modèle, journal de démarrage) vers `/tmp`. Le dashboard affiche maintenant le journal complet du run de démarrage quand il échoue, pour diagnostiquer sans accès aux logs de l'hébergeur.
 
-Aucun des deux n'est un problème qu'on trouve en lisant la doc en diagonale — de bons exemples à raconter en entretien sur le debug d'une chaîne MLOps en conditions réelles, au-delà du modèle lui-même.
+**Rate-limiting Open-Meteo depuis une IP d'hébergeur partagée** : une fois le bug précédent corrigé, le run de démarrage sur Render échouait avec `429 Too Many Requests` de la part d'Open-Meteo -- probablement une IP de sortie partagée entre plusieurs locataires Render qui épuise le quota par IP de l'API gratuite. Corrigé à deux niveaux (`src/data.py`) : (1) retries avec backoff exponentiel (5s/15s/30s) sur les erreurs 429/5xx, pour absorber les pics transitoires ; (2) si l'échec persiste malgré les retries, repli sur un instantané météo réel pré-téléchargé et versionné (`data/fallback_weather.csv`, ~10 000 lignes, 4 aéroports) plutôt que de laisser le dashboard vide -- chaque utilisation du repli est loguée explicitement (jamais silencieuse) pour ne pas être confondue avec de la donnée en direct.
+
+Aucun des trois n'est un problème qu'on trouve en lisant la doc en diagonale — de bons exemples à raconter en entretien sur le debug d'une chaîne MLOps en conditions réelles, au-delà du modèle lui-même.
 
 ## Résultats obtenus (deux runs réels, données réelles)
 
@@ -62,7 +64,7 @@ mlops-observability-dashboard/
 │   ├── train.py         # Pipeline complet : data -> qualité -> entraînement -> MLflow -> traçabilité
 │   └── dashboard.py     # Dashboard Streamlit (lecture seule)
 ├── k8s/                  # Manifestes Kubernetes (voir k8s/README.md : testé vs. écrit)
-├── tests/                 # 28 tests pytest (quality, data, events via mongomock, events_sqlite, backend)
+├── tests/                 # 35 tests pytest (quality, data, events via mongomock, events_sqlite, backend)
 ├── docker-compose.yml     # Version complète : postgres + mongo + mlflow + dashboard
 ├── Dockerfile.mlflow
 ├── Dockerfile.dashboard
@@ -121,7 +123,7 @@ pytest tests/ -v
 - MongoDB : rapports qualité et événements de traçabilité bien écrits et relus (vérifié directement)
 - **Détection de dérive fonctionnelle sur un vrai signal** (précipitations, +26% entre les deux périodes)
 - Le module `dashboard.py` a été exécuté directement contre la stack réelle (hors interface Streamlit) pour confirmer que les fonctions de chargement de données retournent bien les 2 runs et les 2 événements attendus
-- 28 tests pytest, tous passants
+- 35 tests pytest, tous passants
 - Un bug réel (MLflow / DNS rebinding protection) trouvé et corrigé pendant le développement, documenté ci-dessus
 - **Version simplifiée** (`Dockerfile.demo`) : image construite, conteneur lancé, entraînement automatique au démarrage confirmé avec de vraies données, dashboard interrogé avec succès (1 run + 1 événement qualité + 1 événement de traçabilité retrouvés via `dashboard.py` exécuté dans le conteneur)
 

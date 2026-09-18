@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 data/*.csv
+!data/fallback_weather.csv
 data/*.db
 mlruns/
 mlartifacts/
