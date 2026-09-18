@@ -6,3 +6,4 @@ data/*.db
 mlruns/
 mlartifacts/
 .env
+.idea/
