@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlflow:mlflow@postgres:5432/mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_artifacts:/mlartifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MONGO_URI: mongodb://mongo:27017
+    ports:
+      - "8501:8501"
+    depends_on:
+      - mlflow
+      - mongo
+
+  # Ad hoc training job: ne tourne pas en continu, se lance avec
+  # `docker compose run --rm trainer python3 src/train.py`
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MONGO_URI: mongodb://mongo:27017
+    depends_on:
+      - mlflow
+      - mongo
+    profiles: ["tools"]
+    entrypoint: ["python3"]
+    command: ["src/train.py"]
+
+volumes:
+  postgres_data:
+  mongo_data:
+  mlflow_artifacts:

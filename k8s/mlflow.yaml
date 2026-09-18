@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-artifacts-pvc
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mlflow }
+  template:
+    metadata:
+      labels: { app: mlflow }
+    spec:
+      containers:
+        - name: mlflow
+          image: mlops-mlflow:local  # construit depuis ../Dockerfile.mlflow -- voir k8s/README.md
+          ports: [{ containerPort: 5000 }]
+          env:
+            - name: MLFLOW_BACKEND_STORE_URI
+              value: "postgresql://mlflow:mlflow@postgres:5432/mlflow"
+            # "mlflow" et "mlflow:5000" doivent être whitelistés (protection
+            # anti DNS-rebinding de MLflow 3.x) -- bug réel rencontré et
+            # corrigé pendant le développement avec docker-compose, voir
+            # Dockerfile.mlflow pour le détail.
+            - name: MLFLOW_ALLOWED_HOSTS
+              value: "mlflow,mlflow:5000,localhost,localhost:5000"
+          volumeMounts:
+            - name: artifacts
+              mountPath: /mlartifacts
+          readinessProbe:
+            httpGet: { path: /, port: 5000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim: { claimName: mlflow-artifacts-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+spec:
+  selector: { app: mlflow }
+  ports: [{ port: 5000, targetPort: 5000 }]

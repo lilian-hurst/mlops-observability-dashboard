@@ -1,0 +1,20 @@
+# Job ponctuel (équivalent k8s de `docker compose run --rm trainer ...`).
+# Lancer avec : kubectl apply -f trainer-job.yaml && kubectl logs -f job/trainer
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: trainer
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: trainer
+          image: mlops-dashboard:local  # même image que le dashboard, requirements.txt partagé
+          command: ["python3", "src/train.py", "--start", "2026-07-01", "--end", "2026-09-17"]
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow:5000"
+            - name: MONGO_URI
+              value: "mongodb://mongo:27017"

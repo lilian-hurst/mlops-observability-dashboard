@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Silence GitPython's "no git executable found" warning: MLflow tries to log
+# the git commit automatically, which is irrelevant in this container (no
+# .git directory shipped) and just adds noise to the training logs.
+ENV GIT_PYTHON_REFRESH=quiet
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/ src/
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "src/dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
