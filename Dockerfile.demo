@@ -13,20 +13,26 @@ WORKDIR /app
 
 ENV GIT_PYTHON_REFRESH=quiet
 ENV PERSISTENCE_BACKEND=sqlite
-ENV MLFLOW_TRACKING_URI=sqlite:///data/mlflow.db
-ENV SQLITE_EVENTS_PATH=data/events.db
+# Tout ce qui doit être écrit à l'exécution va dans /tmp : certains
+# hébergeurs gratuits (observé sur Render) montent le système de fichiers du
+# conteneur en LECTURE SEULE en dehors de /tmp. Écrire dans ./data (sous
+# /app) y échoue silencieusement (le process continue, mais l'entraînement
+# de démarrage plante) -- reproduit et confirmé en local avec
+# `docker run --read-only --tmpfs /tmp`. /tmp reste inscriptible sur
+# quasiment tous les runtimes de conteneurs, y compris avec un rootfs
+# en lecture seule.
+ENV MLFLOW_TRACKING_URI=sqlite:////tmp/data/mlflow.db
+ENV MLFLOW_ARTIFACT_ROOT=/tmp/data/mlartifacts
+ENV SQLITE_EVENTS_PATH=/tmp/data/events.db
+ENV SEED_LOG_PATH=/tmp/data/seed_training.log
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
 
-RUN mkdir -p data
-
 EXPOSE 8501
 
-# Au démarrage : un run d'entraînement réel pour que le dashboard ne soit
-# jamais vide (échec non bloquant -- si ça échoue, la sortie est capturée
-# dans data/seed_training.log, que dashboard.py affiche directement dans
-# l'interface plutôt que de laisser un état vide sans explication).
-CMD ["sh", "-c", "python3 src/train.py --start 2026-07-01 --end 2026-09-17 > data/seed_training.log 2>&1; streamlit run src/dashboard.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
+# mkdir au runtime (pas au build) : /tmp est un tmpfs vide à chaque
+# démarrage de conteneur, ce que "RUN mkdir" au build ne couvre pas.
+CMD ["sh", "-c", "mkdir -p /tmp/data && python3 src/train.py --start 2026-07-01 --end 2026-09-17 > ${SEED_LOG_PATH} 2>&1; streamlit run src/dashboard.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]

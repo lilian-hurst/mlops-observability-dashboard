@@ -32,9 +32,13 @@ Une chaîne MLOps polyglotte-persistance complète, avec un dashboard qui l'obse
 - **Postgres** (via MLflow) pour les runs/métriques : données structurées, un schéma stable, on veut des requêtes/agrégations fiables dessus.
 - **MongoDB** pour les événements qualité/traçabilité : le contenu d'un rapport de qualité change de forme d'une vérification à l'autre (colonnes manquantes, violations de plage, dérive détectée...) — le forcer dans des tables relationnelles imposerait des migrations de schéma à chaque nouvelle vérification ajoutée. Un document JSON schema-less colle mieux à ce que c'est réellement.
 
-## Un vrai bug rencontré et corrigé pendant le développement
+## Deux vrais bugs rencontrés et corrigés pendant le développement
 
-MLflow 3.x rejette par défaut toute requête dont l'en-tête `Host` n'est pas dans une liste blanche (protection anti *DNS rebinding*). Le nom de service Docker Compose `mlflow` n'y est pas par défaut → toutes les requêtes du pipeline d'entraînement échouaient avec `403 Invalid Host header`, jusqu'à ajouter explicitement `--allowed-hosts mlflow,mlflow:5000` au démarrage du serveur (voir `Dockerfile.mlflow`). Pas un problème qu'on trouve en lisant la doc en diagonale — un bon exemple à raconter en entretien sur "debugger une brique MLOps en conditions réelles".
+**MLflow / DNS rebinding (version complète)** : MLflow 3.x rejette par défaut toute requête dont l'en-tête `Host` n'est pas dans une liste blanche (protection anti *DNS rebinding*). Le nom de service Docker Compose `mlflow` n'y est pas par défaut → toutes les requêtes du pipeline d'entraînement échouaient avec `403 Invalid Host header`, jusqu'à ajouter explicitement `--allowed-hosts mlflow,mlflow:5000` au démarrage du serveur (voir `Dockerfile.mlflow`).
+
+**Système de fichiers en lecture seule (version simplifiée / démo en ligne)** : sur Render, le système de fichiers du conteneur est monté en lecture seule en dehors de `/tmp`. Le run d'entraînement de démarrage écrivait dans `./data` (sous `/app`) → échec silencieux (`cannot create data/seed_training.log: Read-only file system`), le dashboard démarrait quand même (d'où un "aucun run trouvé" sans explication visible). Reproduit et confirmé en local avec `docker run --read-only --tmpfs /tmp`, corrigé en redirigeant toutes les écritures (base MLflow, base d'événements, artefacts de modèle, journal de démarrage) vers `/tmp`. Le dashboard affiche maintenant le journal complet du run de démarrage quand il échoue, pour diagnostiquer sans accès aux logs de l'hébergeur.
+
+Aucun des deux n'est un problème qu'on trouve en lisant la doc en diagonale — de bons exemples à raconter en entretien sur le debug d'une chaîne MLOps en conditions réelles, au-delà du modèle lui-même.
 
 ## Résultats obtenus (deux runs réels, données réelles)
 

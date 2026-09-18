@@ -55,6 +55,19 @@ def main():
 
     tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
     mlflow.set_tracking_uri(tracking_uri)
+
+    # MLflow's default artifact location for a newly created experiment is
+    # relative to the current working directory (./mlruns), which can be
+    # read-only on some free hosts (see Dockerfile.demo). Set it explicitly
+    # to a writable path when MLFLOW_ARTIFACT_ROOT is provided (the demo
+    # deployment sets it to somewhere under /tmp); the real docker-compose
+    # stack, which uses an actual MLflow server, doesn't set this and keeps
+    # its normal server-managed artifact store.
+    artifact_root = os.environ.get("MLFLOW_ARTIFACT_ROOT")
+    client = mlflow.tracking.MlflowClient()
+    experiment = client.get_experiment_by_name(EXPERIMENT_NAME)
+    if experiment is None and artifact_root:
+        mlflow.create_experiment(EXPERIMENT_NAME, artifact_location=artifact_root)
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     print(f"-> Récupération des données réelles ({args.start} -> {args.end})...")
