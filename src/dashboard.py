@@ -93,6 +93,20 @@ if runs.empty:
         "Aucun run trouvé pour l'expérience "
         f"'{EXPERIMENT_NAME}'. Lance `python3 src/train.py` pour en produire un."
     )
+    seed_log = Path(os.environ.get("SEED_LOG_PATH", "data/seed_training.log"))
+    if seed_log.exists():
+        content = seed_log.read_text(errors="replace").strip()
+        if content:
+            st.error(
+                "Le run de démarrage automatique a échoué. Sortie complète ci-dessous "
+                "(voir README, section méthodologie, pour les causes connues sur les "
+                "hébergeurs gratuits)."
+            )
+            st.code(content, language="text")
+        else:
+            st.info("Le run de démarrage a produit un journal vide (probablement encore en cours).")
+    else:
+        st.info("Aucun journal de démarrage trouvé -- le run initial n'a peut-être pas encore tourné.")
 else:
     st.subheader("Historique des runs")
     metric_cols = [c for c in runs.columns if c.startswith("metric.")]

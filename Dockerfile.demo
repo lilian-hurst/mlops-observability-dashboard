@@ -26,6 +26,7 @@ RUN mkdir -p data
 EXPOSE 8501
 
 # Au démarrage : un run d'entraînement réel pour que le dashboard ne soit
-# jamais vide (échec non bloquant -- le dashboard gère proprement le cas
-# "aucun run" si l'API météo est injoignable), puis le dashboard lui-même.
-CMD ["sh", "-c", "python3 src/train.py --start 2026-07-01 --end 2026-09-17 || echo 'Seed training failed, dashboard will show empty state.'; streamlit run src/dashboard.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
+# jamais vide (échec non bloquant -- si ça échoue, la sortie est capturée
+# dans data/seed_training.log, que dashboard.py affiche directement dans
+# l'interface plutôt que de laisser un état vide sans explication).
+CMD ["sh", "-c", "python3 src/train.py --start 2026-07-01 --end 2026-09-17 > data/seed_training.log 2>&1; streamlit run src/dashboard.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
