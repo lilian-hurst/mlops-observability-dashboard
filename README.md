@@ -1,6 +1,7 @@
 # MLOps Observability Dashboard
 
-🔗 **Démo en ligne (version simplifiée) : à venir**
+🔗 **Démo en ligne (version simplifiée) : [mlops-observability-dashboard.onrender.com](https://mlops-observability-dashboard.onrender.com)**
+(hébergement gratuit Render — le service se met en veille après 15 min d'inactivité ; le premier appel déclenche aussi un ré-entraînement automatique, prévoir ~40-50s)
 
 Un outil de visualisation branché au cœur d'une chaîne MLOps : historique des runs d'entraînement, qualité et dérive des données, traçabilité donnée → modèle. Construit comme projet portfolio ciblant le stage **Thales** (Ingénieur Développement et intégration d'un outil IA dans une chaîne MLOps, CortAIx Labs) — la mission de l'offre est quasiment reprise mot pour mot : *"développer et intégrer un outil moderne de visualisation et d'analyse de données au cœur d'une chaîne MLOps"*.
 
