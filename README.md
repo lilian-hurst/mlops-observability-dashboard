@@ -1,6 +1,20 @@
 # MLOps Observability Dashboard
 
+🔗 **Démo en ligne (version simplifiée) : à venir**
+
 Un outil de visualisation branché au cœur d'une chaîne MLOps : historique des runs d'entraînement, qualité et dérive des données, traçabilité donnée → modèle. Construit comme projet portfolio ciblant le stage **Thales** (Ingénieur Développement et intégration d'un outil IA dans une chaîne MLOps, CortAIx Labs) — la mission de l'offre est quasiment reprise mot pour mot : *"développer et intégrer un outil moderne de visualisation et d'analyse de données au cœur d'une chaîne MLOps"*.
+
+## Deux versions, un seul code
+
+| | Version complète (`docker-compose.yml`) | Version simplifiée (`Dockerfile.demo`) |
+|---|---|---|
+| MLflow | Serveur HTTP, backend Postgres | Mode local, fichier SQLite (pas de serveur) |
+| Événements qualité/traçabilité | MongoDB | Fichier SQLite (`src/events_sqlite.py`, même interface) |
+| Services | 4 conteneurs | 1 seul conteneur |
+| Usage | Local / Docker / Kubernetes — architecture "réaliste" | Déploiement gratuit à un seul service web (Render...) pour la démo publique |
+| Persistance | Volumes Docker / PVC Kubernetes | **Non garantie** sur un hébergeur gratuit (disque éphémère) — le conteneur se ré-entraîne automatiquement au démarrage |
+
+Le choix du backend (Mongo ou SQLite) se fait via la variable d'environnement `PERSISTENCE_BACKEND` (voir `src/backend.py`) : `train.py` et `dashboard.py` ne changent pas d'une ligne entre les deux versions, seule la persistance change. C'est la version complète (Postgres + MongoDB) qui a été load-testée avec deux vrais runs et une vraie détection de dérive (voir plus bas) ; la version simplifiée réutilise exactement la même logique, juste sur un backend plus modeste.
 
 ## Ce que fait le projet
 
@@ -37,14 +51,17 @@ mlops-observability-dashboard/
 ├── src/
 │   ├── data.py          # Données météo réelles (Open-Meteo) + label proxy (même méthodologie que flight-disruption-risk)
 │   ├── quality.py       # Contrôles qualité/dérive (fonctions pures, testées unitairement)
-│   ├── events.py        # Accès MongoDB (rapports qualité + traçabilité)
+│   ├── events.py        # Accès MongoDB (rapports qualité + traçabilité) -- version complète
+│   ├── events_sqlite.py # Même interface, backend SQLite -- version simplifiée/démo
+│   ├── backend.py       # Sélecteur Mongo/SQLite via PERSISTENCE_BACKEND
 │   ├── train.py         # Pipeline complet : data -> qualité -> entraînement -> MLflow -> traçabilité
 │   └── dashboard.py     # Dashboard Streamlit (lecture seule)
 ├── k8s/                  # Manifestes Kubernetes (voir k8s/README.md : testé vs. écrit)
-├── tests/                 # 21 tests pytest (quality, data, events via mongomock)
-├── docker-compose.yml
+├── tests/                 # 28 tests pytest (quality, data, events via mongomock, events_sqlite, backend)
+├── docker-compose.yml     # Version complète : postgres + mongo + mlflow + dashboard
 ├── Dockerfile.mlflow
 ├── Dockerfile.dashboard
+├── Dockerfile.demo       # Version simplifiée : un seul conteneur, SQLite, pour déploiement gratuit
 └── requirements.txt
 ```
 
@@ -70,6 +87,23 @@ python3 src/train.py
 streamlit run src/dashboard.py
 ```
 
+### Version simplifiée (démo en ligne), en local
+```bash
+docker build -f Dockerfile.demo -t mlops-dashboard-demo .
+docker run -p 8501:8501 mlops-dashboard-demo
+# http://localhost:8501 -- s'entraîne tout seul au démarrage (~40-50s la première fois)
+```
+
+### Déploiement gratuit de la version simplifiée
+
+Même méthode que pour `flight-disruption-risk` : [Render](https://render.com) (gratuit, sans carte bancaire, service web se met en veille après 15 min d'inactivité).
+
+1. Pousser ce dépôt sur GitHub (déjà fait si tu lis ceci sur GitHub)
+2. Sur [dashboard.render.com](https://dashboard.render.com/register) → **New +** → **Web Service** → sélectionner ce dépôt
+3. **Dockerfile Path** : `Dockerfile.demo` (à changer manuellement, Render détecte `Dockerfile` par défaut)
+4. **Instance Type** : **Free**
+5. **Create Web Service**
+
 ### Tests
 ```bash
 pytest tests/ -v
@@ -82,8 +116,9 @@ pytest tests/ -v
 - MongoDB : rapports qualité et événements de traçabilité bien écrits et relus (vérifié directement)
 - **Détection de dérive fonctionnelle sur un vrai signal** (précipitations, +26% entre les deux périodes)
 - Le module `dashboard.py` a été exécuté directement contre la stack réelle (hors interface Streamlit) pour confirmer que les fonctions de chargement de données retournent bien les 2 runs et les 2 événements attendus
-- 21 tests pytest, tous passants
+- 28 tests pytest, tous passants
 - Un bug réel (MLflow / DNS rebinding protection) trouvé et corrigé pendant le développement, documenté ci-dessus
+- **Version simplifiée** (`Dockerfile.demo`) : image construite, conteneur lancé, entraînement automatique au démarrage confirmé avec de vraies données, dashboard interrogé avec succès (1 run + 1 événement qualité + 1 événement de traçabilité retrouvés via `dashboard.py` exécuté dans le conteneur)
 
 ## Limite assumée
 Les manifestes Kubernetes (`k8s/`) sont écrits pour reproduire fidèlement l'architecture Docker Compose testée, mais n'ont pas été appliqués sur un cluster réel dans cet environnement (aucun `kind`/`minikube` disponible). Voir `k8s/README.md` pour comment les tester réellement.

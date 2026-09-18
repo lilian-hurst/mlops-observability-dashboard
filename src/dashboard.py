@@ -21,7 +21,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 
-from src.events import get_db, recent_quality_events, recent_training_events
+from src.backend import get_db, recent_quality_events, recent_training_events
 from src.train import EXPERIMENT_NAME
 
 st.set_page_config(page_title="MLOps Observability", page_icon="🛰️", layout="wide")

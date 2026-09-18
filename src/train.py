@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 
 from src.data import FEATURES, TARGET, build_dataset
-from src.events import log_quality_event, log_training_event, recent_training_events
+from src.backend import log_quality_event, log_training_event, recent_training_events
 from src.quality import run_quality_checks
 
 EXPERIMENT_NAME = "flight-weather-risk"
@@ -65,7 +65,7 @@ def main():
     quality_report = run_quality_checks(df, reference_stats)
     quality_event_id = log_quality_event(quality_report)
     print(f"   Rapport qualité : passed={quality_report['passed']} "
-          f"(id Mongo: {quality_event_id})")
+          f"(id événement: {quality_event_id})")
     if quality_report["drift_vs_previous_run"]:
         print(f"   Dérive détectée sur : {list(quality_report['drift_vs_previous_run'])}")
 

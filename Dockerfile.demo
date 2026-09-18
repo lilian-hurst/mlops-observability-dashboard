@@ -1,0 +1,31 @@
+# Version simplifiée pour un déploiement gratuit en un seul service web
+# (Render, etc.) : pas de Postgres ni de MongoDB externes -- MLflow tourne en
+# mode "local" sur un fichier SQLite (pas de serveur MLflow séparé non plus,
+# le dashboard lit directement le fichier), et les événements qualité /
+# traçabilité vont dans un second fichier SQLite (src/events_sqlite.py) au
+# lieu de MongoDB. Voir le README, section "Version simplifiée en ligne",
+# pour le compromis assumé (persistance non garantie entre redéploiements
+# sur un hébergeur gratuit -- le conteneur se re-seed avec un run réel à
+# chaque démarrage).
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV GIT_PYTHON_REFRESH=quiet
+ENV PERSISTENCE_BACKEND=sqlite
+ENV MLFLOW_TRACKING_URI=sqlite:///data/mlflow.db
+ENV SQLITE_EVENTS_PATH=data/events.db
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/ src/
+
+RUN mkdir -p data
+
+EXPOSE 8501
+
+# Au démarrage : un run d'entraînement réel pour que le dashboard ne soit
+# jamais vide (échec non bloquant -- le dashboard gère proprement le cas
+# "aucun run" si l'API météo est injoignable), puis le dashboard lui-même.
+CMD ["sh", "-c", "python3 src/train.py --start 2026-07-01 --end 2026-09-17 || echo 'Seed training failed, dashboard will show empty state.'; streamlit run src/dashboard.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
